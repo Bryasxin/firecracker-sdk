@@ -2,6 +2,7 @@
 use crate::dto::LoggerLevel;
 use crate::firecracker::Firecracker;
 use std::path::PathBuf;
+use tracing::{error, info, instrument, warn};
 
 /// Used for quickly generating builder pattern setter methods
 macro_rules! with {
@@ -98,10 +99,13 @@ impl FirecrackerBuilder {
     }
 
     /// Build unstarted Firecracker
+    #[instrument(skip(self))]
     pub fn build(self) -> Result<Firecracker, crate::Error> {
+        info!(binary = %self.firecracker_binary.display(), "building Firecracker instance");
         let firecracker_binary = &self.firecracker_binary;
 
         if !firecracker_binary.exists() {
+            error!(path = %firecracker_binary.display(), "Firecracker binary not found");
             return Err(crate::Error::InvalidConfiguration(format!(
                 "Firecracker binary not found: {}",
                 firecracker_binary.display()
@@ -109,13 +113,16 @@ impl FirecrackerBuilder {
         }
 
         if !firecracker_binary.is_file() {
+            error!(path = %firecracker_binary.display(), "Firecracker path is not a file");
             return Err(crate::Error::InvalidConfiguration(format!(
                 "Firecracker path is not a file: {}",
                 firecracker_binary.display()
             )));
         }
+        info!(path = %firecracker_binary.display(), "Firecracker binary validated");
 
         if self.api_socket_path.is_none() && self.config_file.is_none() {
+            error!("Neither API socket nor configuration file specified");
             return Err(crate::Error::InvalidConfiguration(
                 "Api socket or configuration file must be specified".to_string(),
             ));
@@ -124,6 +131,7 @@ impl FirecrackerBuilder {
         if let Some(ref path) = self.config_file
             && !path.exists()
         {
+            error!(path = %path.display(), "Configuration file not found");
             return Err(crate::Error::InvalidConfiguration(format!(
                 "Configuration file not found: {}",
                 path.display()
@@ -133,6 +141,7 @@ impl FirecrackerBuilder {
         if let Some(ref path) = self.seccomp_filter {
             let path_buf = std::path::Path::new(path);
             if !path_buf.exists() {
+                error!(path = %path, "Seccomp filter file not found");
                 return Err(crate::Error::InvalidConfiguration(format!(
                     "Seccomp filter file not found: {}",
                     path
@@ -143,6 +152,11 @@ impl FirecrackerBuilder {
         if let Some(size) = self.mmds_size_limit {
             const MMDS_SIZE_LIMIT_MAX: usize = 512_000_000;
             if size > MMDS_SIZE_LIMIT_MAX {
+                error!(
+                    size = size,
+                    max = MMDS_SIZE_LIMIT_MAX,
+                    "MMDS size limit too large"
+                );
                 return Err(crate::Error::InvalidConfiguration(format!(
                     "mmds-size-limit too large: {} (max: {})",
                     size, MMDS_SIZE_LIMIT_MAX
@@ -154,12 +168,22 @@ impl FirecrackerBuilder {
             const HTTP_API_MAX_PAYLOAD_LIMIT_MAX: usize = 10_000_000;
             const HTTP_API_MAX_PAYLOAD_LIMIT_MIN: usize = 1024;
             if size > HTTP_API_MAX_PAYLOAD_LIMIT_MAX {
+                error!(
+                    size = size,
+                    max = HTTP_API_MAX_PAYLOAD_LIMIT_MAX,
+                    "HTTP API payload limit too large"
+                );
                 return Err(crate::Error::InvalidConfiguration(format!(
                     "http-api-max-payload-limit too large: {} (max: {})",
                     size, HTTP_API_MAX_PAYLOAD_LIMIT_MAX
                 )));
             }
             if size < HTTP_API_MAX_PAYLOAD_LIMIT_MIN {
+                error!(
+                    size = size,
+                    min = HTTP_API_MAX_PAYLOAD_LIMIT_MIN,
+                    "HTTP API payload limit too small"
+                );
                 return Err(crate::Error::InvalidConfiguration(format!(
                     "http-api-max-payload-limit too small: {} (min: {})",
                     size, HTTP_API_MAX_PAYLOAD_LIMIT_MIN
@@ -167,7 +191,8 @@ impl FirecrackerBuilder {
             }
         }
 
-        let mut firecracker = Firecracker::new(self.firecracker_binary);
+        info!("all validations passed, creating Firecracker instance");
+        let mut firecracker = Firecracker::new(self.firecracker_binary.clone());
 
         if let Some(path) = self.api_socket_path {
             firecracker.add_arg("--api-sock");

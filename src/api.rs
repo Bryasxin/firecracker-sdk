@@ -11,6 +11,7 @@ use paste::paste;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 use std::path::PathBuf;
+use tracing::{debug, instrument, trace};
 
 #[derive(Debug, Clone)]
 pub struct FirecrackerApiClient {
@@ -47,12 +48,14 @@ impl FirecrackerApiClient {
         }
     }
 
+    #[instrument(skip(self, body), fields(%path))]
     async fn request(
         &self,
         method: Method,
         path: &str,
         body: Full<Bytes>,
     ) -> Result<Response<Incoming>, ApiError> {
+        trace!(?method, "sending request");
         let url: Uri = UnixUri::new(&self.socket_path, path).into();
 
         let req = Request::builder()
@@ -62,6 +65,7 @@ impl FirecrackerApiClient {
             .body(body)?;
 
         let response = self.client.request(req).await?;
+        trace!(status = %response.status(), "received response");
         Ok(response)
     }
 
@@ -162,24 +166,38 @@ macro_rules! api_methods {
 
     // Get
     (@method GET $path:literal $fn_name:ident $ret:tt $status:ident) => {
+        #[tracing::instrument(skip(self), fields(path = $path, method = "GET"))]
         pub async fn $fn_name(&self) -> Result<dto::$ret, ApiError> {
-            self.get($path, StatusCode::$status).await
+            tracing::info!("sending API request");
+            let result = self.get($path, StatusCode::$status).await;
+            match &result {
+                Ok(_) => tracing::info!("API request successful"),
+                Err(e) => tracing::error!(error = %e, "API request failed"),
+            }
+            result
         }
     };
 
     // Put/Patch
     (@method $method:ident $path:literal $fn_name:ident ($param_name:ident $param:tt) $status:ident) => {
         paste! {
+            #[tracing::instrument(skip(self, $param_name), fields(path = $path, method = stringify!($method)))]
             pub async fn $fn_name(
                 &self,
                 $param_name: &dto::$param,
             ) -> Result<(), ApiError> {
-                self.[<$method:lower>](
+                tracing::info!("sending API request");
+                let result = self.[<$method:lower>](
                     $path,
                     serde_json::to_vec(&$param_name)?,
                     StatusCode::$status,
                 )
-                .await
+                .await;
+                match &result {
+                    Ok(_) => tracing::info!("API request successful"),
+                    Err(e) => tracing::error!(error = %e, "API request failed"),
+                }
+                result
             }
         }
     };
@@ -232,13 +250,17 @@ api_methods!(
 );
 
 impl FirecrackerApiClient {
+    #[instrument(skip(self))]
     pub async fn patch_balloon_hinting_stop(&self) -> Result<(), ApiError> {
+        debug!("patching balloon hinting stop");
         self.patch("/balloon/hinting/stop", Vec::new(), StatusCode::OK)
             .await
     }
 
+    #[instrument(skip(self, drive))]
     pub async fn put_drives(&self, drive: &dto::Drive) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&drive.drive_id, NON_ALPHANUMERIC);
+        debug!(drive_id = %drive.drive_id, "putting drive");
         self.put(
             format!("/drives/{}", encoded_id).as_str(),
             serde_json::to_vec(drive)?,
@@ -247,8 +269,10 @@ impl FirecrackerApiClient {
         .await
     }
 
+    #[instrument(skip(self, partial_drive))]
     pub async fn patch_drives(&self, partial_drive: &dto::PartialDrive) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&partial_drive.drive_id, NON_ALPHANUMERIC);
+        debug!(drive_id = %partial_drive.drive_id, "patching drive");
         self.patch(
             format!("/drives/{}", encoded_id).as_str(),
             serde_json::to_vec(partial_drive)?,
@@ -257,8 +281,10 @@ impl FirecrackerApiClient {
         .await
     }
 
+    #[instrument(skip(self, pmem))]
     pub async fn put_pmem(&self, pmem: &dto::Pmem) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&pmem.id, NON_ALPHANUMERIC);
+        debug!(pmem_id = %pmem.id, "putting pmem");
         self.put(
             format!("/pmem/{}", encoded_id).as_str(),
             serde_json::to_vec(pmem)?,
@@ -267,11 +293,13 @@ impl FirecrackerApiClient {
         .await
     }
 
+    #[instrument(skip(self, interface))]
     pub async fn put_network_interface(
         &self,
         interface: &dto::NetworkInterface,
     ) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&interface.iface_id, NON_ALPHANUMERIC);
+        debug!(iface_id = %interface.iface_id, "putting network interface");
         self.put(
             format!("/network-interfaces/{}", encoded_id).as_str(),
             serde_json::to_vec(interface)?,
@@ -280,11 +308,13 @@ impl FirecrackerApiClient {
         .await
     }
 
+    #[instrument(skip(self, interface))]
     pub async fn patch_network_interface(
         &self,
         interface: &dto::PartialNetworkInterface,
     ) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&interface.iface_id, NON_ALPHANUMERIC);
+        debug!(iface_id = %interface.iface_id, "patching network interface");
         self.patch(
             format!("/network-interfaces/{}", encoded_id).as_str(),
             serde_json::to_vec(interface)?,

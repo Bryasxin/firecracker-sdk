@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::{Child, Command};
 use tokio::time::{Duration, timeout};
+use tracing::{debug, error, info, instrument, warn};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -95,6 +96,7 @@ impl Firecracker {
     /// Set boot source
     pub fn set_boot_source(&mut self, boot_source: BootSource) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!("setting boot source");
         self.config.boot_source = Some(boot_source);
         Ok(())
     }
@@ -105,6 +107,7 @@ impl Firecracker {
         machine_config: MachineConfiguration,
     ) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!("setting machine configuration");
         self.config.machine_config = Some(machine_config);
         Ok(())
     }
@@ -112,6 +115,7 @@ impl Firecracker {
     /// Add drive
     pub fn add_drive(&mut self, drive: Drive) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!(drive_id = %drive.drive_id, "adding drive");
         self.config.drives.push(drive);
         Ok(())
     }
@@ -119,6 +123,7 @@ impl Firecracker {
     /// Add network interface
     pub fn add_network(&mut self, network: NetworkInterface) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!(iface_id = %network.iface_id, "adding network interface");
         self.config.networks.push(network);
         Ok(())
     }
@@ -126,6 +131,7 @@ impl Firecracker {
     /// Add PMEM
     pub fn add_pmem(&mut self, pmem: Pmem) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!(pmem_id = %pmem.id, "adding PMEM device");
         self.config.pmems.push(pmem);
         Ok(())
     }
@@ -133,6 +139,7 @@ impl Firecracker {
     /// Set VSock
     pub fn set_vsock(&mut self, vsock: Vsock) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!("setting VSock device");
         self.config.vsock = Some(vsock);
         Ok(())
     }
@@ -140,6 +147,7 @@ impl Firecracker {
     /// Set balloon
     pub fn set_balloon(&mut self, balloon: Balloon) -> Result<(), Error> {
         self.ensure_not_started()?;
+        info!("setting balloon device");
         self.config.balloon = Some(balloon);
         Ok(())
     }
@@ -152,47 +160,94 @@ impl Firecracker {
     }
 
     /// Apply configuration via internal API client
+    #[instrument(skip(self))]
     async fn apply_config(&self) -> Result<(), Error> {
         let client = self.client.as_ref().ok_or_else(|| {
+            error!("API client not available for configuration");
             Error::InvalidState(format!(
                 "expected state with API client, found {}",
                 self.state
             ))
         })?;
 
+        info!("applying VM configuration");
+
         if let Some(boot_source) = &self.config.boot_source {
-            client.put_boot_source(boot_source).await?;
+            info!("configuring boot source");
+            if let Err(e) = client.put_boot_source(boot_source).await {
+                error!(error = %e, "failed to configure boot source");
+                return Err(e.into());
+            }
         }
 
         if let Some(machine_config) = &self.config.machine_config {
-            client.put_machine_config(machine_config).await?;
+            info!("configuring machine settings");
+            if let Err(e) = client.put_machine_config(machine_config).await {
+                error!(error = %e, "failed to configure machine settings");
+                return Err(e.into());
+            }
         }
 
-        for drive in &self.config.drives {
-            client.put_drives(drive).await?;
+        if !self.config.drives.is_empty() {
+            info!(count = self.config.drives.len(), "configuring drives");
+            for drive in &self.config.drives {
+                if let Err(e) = client.put_drives(drive).await {
+                    error!(drive_id = %drive.drive_id, error = %e, "failed to configure drive");
+                    return Err(e.into());
+                }
+            }
         }
 
-        for network in &self.config.networks {
-            client.put_network_interface(network).await?;
+        if !self.config.networks.is_empty() {
+            info!(
+                count = self.config.networks.len(),
+                "configuring network interfaces"
+            );
+            for network in &self.config.networks {
+                if let Err(e) = client.put_network_interface(network).await {
+                    error!(iface_id = %network.iface_id, error = %e, "failed to configure network interface");
+                    return Err(e.into());
+                }
+            }
         }
 
-        for pmem in &self.config.pmems {
-            client.put_pmem(pmem).await?;
+        if !self.config.pmems.is_empty() {
+            info!(count = self.config.pmems.len(), "configuring PMEM devices");
+            for pmem in &self.config.pmems {
+                if let Err(e) = client.put_pmem(pmem).await {
+                    error!(pmem_id = %pmem.id, error = %e, "failed to configure PMEM device");
+                    return Err(e.into());
+                }
+            }
         }
 
         if let Some(vsock) = &self.config.vsock {
-            client.put_vsock(vsock).await?;
+            info!("configuring VSock device");
+            if let Err(e) = client.put_vsock(vsock).await {
+                error!(error = %e, "failed to configure VSock device");
+                return Err(e.into());
+            }
         }
 
         if let Some(balloon) = &self.config.balloon {
-            client.put_balloon(balloon).await?;
+            info!("configuring balloon device");
+            if let Err(e) = client.put_balloon(balloon).await {
+                error!(error = %e, "failed to configure balloon device");
+                return Err(e.into());
+            }
         }
 
+        info!("VM configuration applied successfully");
         Ok(())
     }
 
+    #[instrument(skip(self, api_socket), fields(state = ?self.state))]
     pub async fn start(&mut self, api_socket: impl Into<PathBuf>) -> Result<(), Error> {
         if self.state != InstanceState::NotStarted {
+            warn!(
+                current_state = %self.state,
+                "cannot start Firecracker: invalid state"
+            );
             return Err(Error::InvalidState(format!(
                 "expected NotStarted, found {}",
                 self.state
@@ -200,14 +255,30 @@ impl Firecracker {
         }
 
         let api_socket = api_socket.into();
-        let child = Command::new(&self.firecracker_binary)
+        info!(
+            binary = %self.firecracker_binary.display(),
+            socket = %api_socket.display(),
+            "starting Firecracker instance"
+        );
+
+        let child = match Command::new(&self.firecracker_binary)
             .args(&self.args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn()?;
+            .spawn()
+        {
+            Ok(c) => {
+                info!("Firecracker process spawned successfully");
+                c
+            }
+            Err(e) => {
+                error!(error = %e, "failed to spawn Firecracker process");
+                return Err(e.into());
+            }
+        };
 
-        // Wait for API socket
-        timeout(Duration::from_secs(5), async {
+        debug!("waiting for API socket connection");
+        match timeout(Duration::from_secs(5), async {
             loop {
                 match tokio::net::UnixStream::connect(&api_socket).await {
                     Ok(_) => break,
@@ -216,22 +287,43 @@ impl Firecracker {
             }
         })
         .await
-        .map_err(|_| {
-            Error::InvalidState(format!("API socket connection timeout: {:?}", api_socket))
-        })?;
+        {
+            Ok(_) => info!("API socket connected"),
+            Err(_) => {
+                error!("API socket connection timeout after 5 seconds");
+                return Err(Error::InvalidState(format!(
+                    "API socket connection timeout: {:?}",
+                    api_socket
+                )));
+            }
+        }
 
         let client = crate::api::FirecrackerApiClient::new(api_socket);
-        let instance_info = client.get_instance_info().await?;
+        let instance_info = match client.get_instance_info().await {
+            Ok(info) => {
+                info!(id = %info.id, state = %info.state, "retrieved instance info");
+                info
+            }
+            Err(e) => {
+                error!(error = %e, "failed to get instance info");
+                return Err(e.into());
+            }
+        };
 
         self.client = Some(client);
         self.process = Some(child);
         self.instance_info = Some(instance_info);
 
-        // Apply user configuration
-        self.apply_config().await?;
+        info!("applying configuration");
+        if let Err(e) = self.apply_config().await {
+            error!(error = %e, "failed to apply configuration");
+            return Err(e);
+        }
+        info!("configuration applied successfully");
 
-        // Put `InstanceStart` action
-        self.client
+        info!("sending InstanceStart action");
+        match self
+            .client
             .as_ref()
             .ok_or_else(|| {
                 Error::InvalidState(format!(
@@ -242,22 +334,35 @@ impl Firecracker {
             .put_actions(&InstanceActionInfo {
                 action_type: ActionType::InstanceStart,
             })
-            .await?;
+            .await
+        {
+            Ok(_) => info!("InstanceStart action completed"),
+            Err(e) => {
+                error!(error = %e, "failed to start instance");
+                return Err(e.into());
+            }
+        }
 
         self.state = InstanceState::Running;
+        info!("Firecracker instance started successfully");
 
         Ok(())
     }
 
-    /// Pause Firecracker instance
+    #[instrument(skip(self), fields(state = ?self.state))]
     pub async fn pause(&mut self) -> Result<(), Error> {
         if self.state == InstanceState::Stopped {
+            warn!("cannot pause stopped VM");
             return Err(Error::InvalidState(format!(
                 "cannot pause stopped VM, current state: {}",
                 self.state
             )));
         }
         if self.state != InstanceState::Running {
+            warn!(
+                current_state = %self.state,
+                "cannot pause VM: not in Running state"
+            );
             return Err(Error::InvalidState(format!(
                 "expected Running, found {}",
                 self.state
@@ -265,28 +370,41 @@ impl Firecracker {
         }
 
         let client = self.client.as_ref().ok_or_else(|| {
+            error!("API client not available");
             Error::InvalidState(format!(
                 "expected state with API client, found {}",
                 self.state
             ))
         })?;
 
-        client.patch_vm(&VmState::Paused).await?;
-
-        self.state = InstanceState::Paused;
-
-        Ok(())
+        info!("pausing Firecracker instance");
+        match client.patch_vm(&VmState::Paused).await {
+            Ok(_) => {
+                self.state = InstanceState::Paused;
+                info!("Firecracker instance paused successfully");
+                Ok(())
+            }
+            Err(e) => {
+                error!(error = %e, "failed to pause instance");
+                Err(e.into())
+            }
+        }
     }
 
-    /// Resume Firecracker instance
+    #[instrument(skip(self), fields(state = ?self.state))]
     pub async fn resume(&mut self) -> Result<(), Error> {
         if self.state == InstanceState::Stopped {
+            warn!("cannot resume stopped VM");
             return Err(Error::InvalidState(format!(
                 "cannot resume stopped VM, current state: {}",
                 self.state
             )));
         }
         if self.state != InstanceState::Paused {
+            warn!(
+                current_state = %self.state,
+                "cannot resume VM: not in Paused state"
+            );
             return Err(Error::InvalidState(format!(
                 "expected Paused, found {}",
                 self.state
@@ -294,32 +412,49 @@ impl Firecracker {
         }
 
         let client = self.client.as_ref().ok_or_else(|| {
+            error!("API client not available");
             Error::InvalidState(format!(
                 "expected state with API client, found {}",
                 self.state
             ))
         })?;
 
-        client.patch_vm(&VmState::Running).await?;
-
-        self.state = InstanceState::Running;
-
-        Ok(())
+        info!("resuming Firecracker instance");
+        match client.patch_vm(&VmState::Running).await {
+            Ok(_) => {
+                self.state = InstanceState::Running;
+                info!("Firecracker instance resumed successfully");
+                Ok(())
+            }
+            Err(e) => {
+                error!(error = %e, "failed to resume instance");
+                Err(e.into())
+            }
+        }
     }
 
-    /// Shutdown Firecracker
+    #[instrument(skip(self), fields(state = ?self.state))]
     pub async fn shutdown(&mut self) -> Result<(), Error> {
+        info!("shutting down Firecracker instance");
+
         if let Some(client) = &self.client {
-            let _ = client
+            debug!("sending CtrlAltDel action");
+            if let Err(e) = client
                 .put_actions(&InstanceActionInfo {
                     action_type: ActionType::SendCtrlAltDel,
                 })
-                .await;
+                .await
+            {
+                warn!(error = %e, "failed to send CtrlAltDel action");
+            }
         }
 
         // Wait for process to exit to avoid zombie processes
         if let Some(mut process) = self.process.take() {
-            let _ = process.kill().await;
+            debug!("killing Firecracker process");
+            if let Err(e) = process.kill().await {
+                warn!(error = %e, "failed to kill process");
+            }
             let _ = timeout(Duration::from_secs(5), process.wait()).await;
         }
 
@@ -328,6 +463,7 @@ impl Firecracker {
         self.state = InstanceState::Stopped;
         self.instance_info = None;
 
+        info!("Firecracker instance shutdown complete");
         Ok(())
     }
 }
@@ -335,7 +471,10 @@ impl Firecracker {
 impl Drop for Firecracker {
     fn drop(&mut self) {
         if let Some(mut process) = self.process.take() {
-            let _ = process.start_kill();
+            debug!("dropping Firecracker instance, killing process");
+            if let Err(e) = process.start_kill() {
+                warn!(error = %e, "failed to kill process during drop");
+            }
         }
     }
 }
