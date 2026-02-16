@@ -20,13 +20,13 @@ pub struct FirecrackerApiClient {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
-    #[error("Hyper http error: {0}")]
-    HyperHttp(#[from] hyper::http::Error),
+    #[error("HTTP error: {0}")]
+    Http(#[from] hyper::http::Error),
 
-    #[error("Hyper error: {0}")]
-    Hyper(#[from] hyper::Error),
+    #[error("Transport error: {0}")]
+    Transport(#[from] hyper::Error),
 
-    #[error("Request error: {0}")]
+    #[error("Request failed: {0}")]
     Request(#[from] hyper_util::client::legacy::Error),
 
     #[error("Invalid input: {0}")]
@@ -37,9 +37,6 @@ pub enum ApiError {
 
     #[error("Firecracker API error: {0}")]
     Firecracker(String),
-
-    #[error("Invalid state: {0}")]
-    InvalidState(String),
 }
 
 impl FirecrackerApiClient {
@@ -90,7 +87,11 @@ impl FirecrackerApiClient {
             }
             _ => {
                 let error: crate::dto::Error = serde_json::from_slice(&body)?;
-                Err(ApiError::Firecracker(error.fault_message))
+                Err(ApiError::Firecracker(format!(
+                    "HTTP {}: {}",
+                    status.as_u16(),
+                    error.fault_message
+                )))
             }
         }
     }

@@ -13,17 +13,11 @@ pub enum Error {
     #[error("Failed to spawn Firecracker process: {0}")]
     Process(#[from] std::io::Error),
 
-    #[error("Failed to wait for api socket: {0}")]
-    WaitForApi(String),
-
-    #[error("Cannot connect api socket")]
-    CannotConnectApiSocket,
-
-    #[error("Api error: {0}")]
+    #[error("API error: {0}")]
     Api(#[from] ApiError),
 
     #[error("Invalid state: {0}")]
-    InvalidState(&'static str),
+    InvalidState(String),
 
     #[error("Invalid configuration: {0}")]
     InvalidConfiguration(String),
@@ -79,18 +73,22 @@ impl Firecracker {
     ///
     /// WARN: Before using this method, you should know what you are doing.
     pub fn api(&self) -> Result<&crate::api::FirecrackerApiClient, Error> {
-        self.client
-            .as_ref()
-            .ok_or_else(|| Error::InvalidState("Firecracker not started"))
+        self.client.as_ref().ok_or_else(|| {
+            Error::InvalidState(format!(
+                "expected state with API client, found {}",
+                self.state
+            ))
+        })
     }
 
     /// Ensure state is [`InstanceState::NotStarted`]
     fn ensure_not_started(&self) -> Result<(), Error> {
         match self.state {
             InstanceState::NotStarted => Ok(()),
-            _ => Err(Error::InvalidState(
-                "Cannot modify config after Firecracker has started",
-            )),
+            _ => Err(Error::InvalidState(format!(
+                "expected NotStarted, found {}",
+                self.state
+            ))),
         }
     }
 
@@ -155,10 +153,12 @@ impl Firecracker {
 
     /// Apply configuration via internal api client
     async fn apply_config(&self) -> Result<(), Error> {
-        let client = self
-            .client
-            .as_ref()
-            .ok_or_else(|| Error::InvalidState("Api client not available"))?;
+        let client = self.client.as_ref().ok_or_else(|| {
+            Error::InvalidState(format!(
+                "expected state with API client, found {}",
+                self.state
+            ))
+        })?;
 
         if let Some(boot_source) = &self.config.boot_source {
             client.put_boot_source(boot_source).await?;
@@ -193,18 +193,21 @@ impl Firecracker {
 
     pub async fn start(&mut self, api_socket: impl Into<PathBuf>) -> Result<(), Error> {
         if self.state != InstanceState::NotStarted {
-            return Err(Error::InvalidState("Firecracker already started"));
+            return Err(Error::InvalidState(format!(
+                "expected NotStarted, found {}",
+                self.state
+            )));
         }
 
+        let api_socket = api_socket.into();
         let child = Command::new(&self.firecracker_binary)
             .args(&self.args)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?;
 
-        // Check api client is available
-        let api_socket = api_socket.into();
-        match timeout(Duration::from_secs(5), async {
+        // Wait for API socket
+        timeout(Duration::from_secs(5), async {
             loop {
                 match tokio::net::UnixStream::connect(&api_socket).await {
                     Ok(_) => break,
@@ -213,10 +216,9 @@ impl Firecracker {
             }
         })
         .await
-        {
-            Ok(_) => (),
-            Err(_) => return Err(Error::CannotConnectApiSocket),
-        }
+        .map_err(|_| {
+            Error::InvalidState(format!("API socket connection timeout: {:?}", api_socket))
+        })?;
 
         let client = crate::api::FirecrackerApiClient::new(api_socket);
         let instance_info = client.get_instance_info().await?;
@@ -231,7 +233,12 @@ impl Firecracker {
         // Put `InstanceStart` action
         self.client
             .as_ref()
-            .ok_or_else(|| Error::InvalidState("Api client not available"))?
+            .ok_or_else(|| {
+                Error::InvalidState(format!(
+                    "expected state with API client, found {}",
+                    self.state
+                ))
+            })?
             .put_actions(&InstanceActionInfo {
                 action_type: ActionType::InstanceStart,
             })
@@ -245,16 +252,24 @@ impl Firecracker {
     /// Pause firecracker instance
     pub async fn pause(&mut self) -> Result<(), Error> {
         if self.state == InstanceState::Stopped {
-            return Err(Error::InvalidState("Cannot pause: vm is stopped"));
+            return Err(Error::InvalidState(format!(
+                "cannot pause stopped VM, current state: {}",
+                self.state
+            )));
         }
         if self.state != InstanceState::Running {
-            return Err(Error::InvalidState("Cannot pause: vm is not running"));
+            return Err(Error::InvalidState(format!(
+                "expected Running, found {}",
+                self.state
+            )));
         }
 
-        let client = self
-            .client
-            .as_ref()
-            .ok_or_else(|| Error::InvalidState("Api client not available"))?;
+        let client = self.client.as_ref().ok_or_else(|| {
+            Error::InvalidState(format!(
+                "expected state with API client, found {}",
+                self.state
+            ))
+        })?;
 
         client.patch_vm(&VmState::Paused).await?;
 
@@ -266,16 +281,24 @@ impl Firecracker {
     /// Resume firecracker instance
     pub async fn resume(&mut self) -> Result<(), Error> {
         if self.state == InstanceState::Stopped {
-            return Err(Error::InvalidState("Cannot resume: vm is stopped"));
+            return Err(Error::InvalidState(format!(
+                "cannot resume stopped VM, current state: {}",
+                self.state
+            )));
         }
         if self.state != InstanceState::Paused {
-            return Err(Error::InvalidState("Cannot resume: vm is not paused"));
+            return Err(Error::InvalidState(format!(
+                "expected Paused, found {}",
+                self.state
+            )));
         }
 
-        let client = self
-            .client
-            .as_ref()
-            .ok_or_else(|| Error::InvalidState("Api client not available"))?;
+        let client = self.client.as_ref().ok_or_else(|| {
+            Error::InvalidState(format!(
+                "expected state with API client, found {}",
+                self.state
+            ))
+        })?;
 
         client.patch_vm(&VmState::Running).await?;
 

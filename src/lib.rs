@@ -6,6 +6,6 @@ pub mod builder;
 pub mod dto;
 pub mod firecracker;
 
-pub use api::{ApiError, FirecrackerApiClient};
+pub use api::ApiError;
 pub use builder::FirecrackerBuilder;
 pub use firecracker::{Error, Firecracker};

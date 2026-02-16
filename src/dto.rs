@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::skip_serializing_none;
+use std::fmt::Display;
 
 /// Balloon device descriptor
 #[skip_serializing_none]
@@ -334,6 +335,17 @@ pub enum InstanceState {
     Running,
     Paused,
     Stopped,
+}
+
+impl std::fmt::Display for InstanceState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstanceState::NotStarted => write!(f, "Not Started"),
+            InstanceState::Running => write!(f, "Running"),
+            InstanceState::Paused => write!(f, "Paused"),
+            InstanceState::Stopped => write!(f, "Stopped"),
+        }
+    }
 }
 
 /// Describes the configuration option for the logging capability
