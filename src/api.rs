@@ -137,7 +137,7 @@ impl FirecrackerApiClient {
     }
 }
 
-// TODO: Refactor this macro for better readability
+// TODO: refactor this macro for better readability
 macro_rules! api_methods {
     (
         $(
@@ -160,14 +160,14 @@ macro_rules! api_methods {
         }
     };
 
-    // GET
+    // Get
     (@method GET $path:literal $fn_name:ident $ret:tt $status:ident) => {
         pub async fn $fn_name(&self) -> Result<dto::$ret, ApiError> {
             self.get($path, StatusCode::$status).await
         }
     };
 
-    // PUT/PATCH
+    // Put/Patch
     (@method $method:ident $path:literal $fn_name:ident ($param_name:ident $param:tt) $status:ident) => {
         paste! {
             pub async fn $fn_name(
@@ -219,7 +219,7 @@ api_methods!(
     PUT "/vsock" as put_vsock (vsock: Vsock) with NO_CONTENT;
 
 
-    // INVALID ROUTE, IMPLEMENT MANUALLY
+    // Invalid route, implement manually
     // [*] PATCH "/balloon/hinting/stop" as patch_balloon_hinting_stop with OK;
     //
     // [*] PUT "/drives/{drive_id}" (drive: Drive) with NO_CONTENT;

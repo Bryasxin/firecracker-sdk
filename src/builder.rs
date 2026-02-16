@@ -1,4 +1,4 @@
-//! Firecracker instance builder, which returns an unstarted firecracker wrapper
+//! Firecracker instance builder, which returns an unstarted Firecracker wrapper
 use crate::dto::LoggerLevel;
 use crate::firecracker::Firecracker;
 use std::path::PathBuf;
@@ -46,35 +46,35 @@ macro_rules! with {
 pub struct FirecrackerBuilder {
     firecracker_binary: PathBuf,
 
-    /// Path to unix domain socket used by the api
+    /// Path to unix domain socket used by the API
     api_socket_path: Option<PathBuf>,
-    /// Enable pci support
+    /// Enable PCI support
     enable_pci: bool,
-    /// Path to a file that contains the microVM configuration in json format
+    /// Path to a file that contains the microVM configuration in JSON format
     config_file: Option<PathBuf>,
     /// Loads boot timer device for logging elapsed time since `InstanceStart` command
     enable_boot_timer: bool,
     /// Print the data format version of the provided snapshot state file
     describe_snapshot_file: Option<PathBuf>,
-    /// Instance id
+    /// Instance ID
     id: Option<String>,
     /// Logger level
     logger_level: Option<LoggerLevel>,
-    /// Path to a fifo or a file used for configuring the logger on startup
+    /// Path to a FIFO or a file used for configuring the logger on startup
     log_file: Option<PathBuf>,
-    /// Path to a file that contains metadata in JSON format to add to the mmds
+    /// Path to a file that contains metadata in JSON format to add to the MMDS
     metadata_file: Option<PathBuf>,
-    /// Path to a fifo or a file used for configuring the metrics on startup
+    /// Path to a FIFO or a file used for configuring the metrics on startup
     metrics_file: Option<PathBuf>,
-    /// Mmds data store limit, in bytes
+    /// MMDS data store limit, in bytes
     mmds_size_limit: Option<usize>,
-    /// Http api request payload max size, in bytes
+    /// HTTP API request payload max size, in bytes
     http_api_max_payload_limit: Option<usize>,
     /// Logger module filter
     logger_module_filter: Option<String>,
     /// Disables seccomp
     disable_seccomp: Option<bool>,
-    /// Parent process cpu time (wall clock, microseconds)
+    /// Parent process CPU time (wall clock, microseconds)
     parent_cpu_time: Option<usize>,
     /// Specifies the path to a custom seccomp filter
     seccomp_filter: Option<String>,
@@ -89,7 +89,7 @@ pub struct FirecrackerBuilder {
 }
 
 impl FirecrackerBuilder {
-    /// Create a new firecracker builder
+    /// Create a new Firecracker builder
     pub fn new(firecracker_binary: impl Into<PathBuf>) -> Self {
         Self {
             firecracker_binary: firecracker_binary.into(),
@@ -97,7 +97,7 @@ impl FirecrackerBuilder {
         }
     }
 
-    /// Build unstarted firecracker
+    /// Build unstarted Firecracker
     pub fn build(self) -> Result<Firecracker, crate::Error> {
         let firecracker_binary = &self.firecracker_binary;
 

@@ -97,7 +97,7 @@ pub struct BalloonStatsUpdate {
     pub stats_polling_interval_s: isize,
 }
 
-/// The CPU Template defines a set of flags to be disabled from the microvm so that
+/// The CPU template defines a set of flags to be disabled from the microvm so that
 /// the features exposed to the guest are the same as in the selected instance type.
 /// This parameter has been deprecated and it will be removed in future Firecracker
 /// release
@@ -256,7 +256,7 @@ pub enum IoEngine {
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pmem {
-    /// Identificator for this device
+    /// Identifier for this device
     pub id: String,
     /// Host level path for the virtio-pmem device to use as a backing file
     pub path_on_host: String,
@@ -315,7 +315,7 @@ pub enum ActionType {
     SendCtrlAltDel,
 }
 
-/// Describes MicroVM instance information
+/// Describes microVM instance information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstanceInfo {
     /// Application name
@@ -364,7 +364,7 @@ pub struct Logger {
     pub module: Option<String>,
 }
 
-/// INFO: Logger level is case-insensitive
+/// Logger level is case-insensitive level is case-insensitive
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum LoggerLevel {
     #[serde(rename = "Error")]
@@ -396,7 +396,7 @@ impl Display for LoggerLevel {
     }
 }
 
-/// Defines a vsock device, backed by a set of Unix Domain Sockets, on the host side.
+/// Defines a VSock device, backed by a set of Unix Domain Sockets, on the host side.
 /// For host-initiated connections, Firecracker will be listening on the Unix socket
 /// identified by the path `uds_path`. Firecracker will create this socket, bind and
 /// listen on it. Host-initiated connections will be performed by connection to this
@@ -424,7 +424,7 @@ pub struct MemoryHotplugStatus {
     pub total_size_mib: Option<isize>,
     /// Slot size for the hotpluggable memory in MiB
     pub slot_size_mib: Option<isize>,
-    /// (Logical) Block size for the hotpluggable memory in MiB
+    /// (Logical) block size for the hotpluggable memory in MiB
     pub block_size_mib: Option<isize>,
     /// Plugged size for the hotpluggable memory in MiB
     pub plugged_size_mib: Option<isize>,
@@ -464,7 +464,7 @@ pub struct MemoryHotplugConfig {
     /// Slot size for the hotpluggable memory in MiB. This will determine the granularity of
     /// hot-plug memory from the host. Refer to the device documentation on how to tune this value
     pub slot_size_mib: Option<isize>,
-    /// (Logical) Block size for the hotpluggable memory in MiB. This will determine the logical
+    /// (Logical) block size for the hotpluggable memory in MiB. This will determine the logical
     /// granularity of hot-plug memory for the guest. Refer to the device documentation on how to tune this value
     pub block_size_mib: Option<isize>,
 }

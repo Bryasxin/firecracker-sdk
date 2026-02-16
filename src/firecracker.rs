@@ -69,9 +69,9 @@ impl Firecracker {
         self.instance_info.as_ref()
     }
 
-    /// Get api client
+    /// Get API client
     ///
-    /// WARN: Before using this method, you should know what you are doing.
+    /// Warn: before using this method, you should know what you are doing.
     pub fn api(&self) -> Result<&crate::api::FirecrackerApiClient, Error> {
         self.client.as_ref().ok_or_else(|| {
             Error::InvalidState(format!(
@@ -123,7 +123,7 @@ impl Firecracker {
         Ok(())
     }
 
-    /// Add pmem
+    /// Add PMEM
     pub fn add_pmem(&mut self, pmem: Pmem) -> Result<(), Error> {
         self.ensure_not_started()?;
         self.config.pmems.push(pmem);
@@ -144,14 +144,14 @@ impl Firecracker {
         Ok(())
     }
 
-    /// Add firecracker process args
+    /// Add Firecracker process args
     ///
-    /// WARN: Do not add args after starting instance
+    /// Warn: do not add args after starting instance
     pub(crate) fn add_arg(&mut self, arg: impl Into<String>) {
         self.args.push(arg.into())
     }
 
-    /// Apply configuration via internal api client
+    /// Apply configuration via internal API client
     async fn apply_config(&self) -> Result<(), Error> {
         let client = self.client.as_ref().ok_or_else(|| {
             Error::InvalidState(format!(
@@ -249,7 +249,7 @@ impl Firecracker {
         Ok(())
     }
 
-    /// Pause firecracker instance
+    /// Pause Firecracker instance
     pub async fn pause(&mut self) -> Result<(), Error> {
         if self.state == InstanceState::Stopped {
             return Err(Error::InvalidState(format!(
@@ -278,7 +278,7 @@ impl Firecracker {
         Ok(())
     }
 
-    /// Resume firecracker instance
+    /// Resume Firecracker instance
     pub async fn resume(&mut self) -> Result<(), Error> {
         if self.state == InstanceState::Stopped {
             return Err(Error::InvalidState(format!(
@@ -307,7 +307,7 @@ impl Firecracker {
         Ok(())
     }
 
-    /// Shutdown firecracker
+    /// Shutdown Firecracker
     pub async fn shutdown(&mut self) -> Result<(), Error> {
         if let Some(client) = &self.client {
             let _ = client
