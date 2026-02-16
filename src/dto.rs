@@ -371,16 +371,15 @@ pub enum LoggerLevel {
 }
 
 // We only need to transform it into string
-#[allow(clippy::from_over_into)]
-impl Into<String> for LoggerLevel {
-    fn into(self) -> String {
+impl Display for LoggerLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LoggerLevel::Error => "Error".to_string(),
-            LoggerLevel::Warning => "Warning".to_string(),
-            LoggerLevel::Info => "Info".to_string(),
-            LoggerLevel::Debug => "Debug".to_string(),
-            LoggerLevel::Trace => "Trace".to_string(),
-            LoggerLevel::Off => "Off".to_string(),
+            LoggerLevel::Error => write!(f, "Error"),
+            LoggerLevel::Warning => write!(f, "Warning"),
+            LoggerLevel::Info => write!(f, "Info"),
+            LoggerLevel::Debug => write!(f, "Debug"),
+            LoggerLevel::Trace => write!(f, "Trace"),
+            LoggerLevel::Off => write!(f, "Off"),
         }
     }
 }

@@ -198,9 +198,8 @@ impl FirecrackerBuilder {
         }
 
         if let Some(level) = self.logger_level {
-            let level: String = level.into();
             firecracker.add_arg("--level");
-            firecracker.add_arg(level);
+            firecracker.add_arg(level.to_string());
         }
 
         if let Some(path) = self.log_file {
