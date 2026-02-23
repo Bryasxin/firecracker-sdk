@@ -80,6 +80,12 @@ impl FirecrackerApiClient {
         let status = response.status();
         let body = response.into_body().collect().await?.to_bytes();
 
+        if body.is_empty() {
+            return Err(ApiError::Serialization(serde_json::Error::io(
+                std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "empty response body"),
+            )));
+        }
+
         match status {
             s if s == expected_status => {
                 let result: T = serde_json::from_slice(&body)?;
@@ -121,9 +127,12 @@ impl FirecrackerApiClient {
         expected_status: StatusCode,
     ) -> Result<T, ApiError>
     where
-        T: for<'de> serde::Deserialize<'de>,
+        T: for<'de> serde::Deserialize<'de> + Default,
     {
         let result = self.request(Method::PUT, path, req.into()).await?;
+        if result.status() == StatusCode::NO_CONTENT {
+            return Ok(T::default());
+        }
         self.parse_response(result, expected_status).await
     }
 
@@ -134,9 +143,12 @@ impl FirecrackerApiClient {
         expected_status: StatusCode,
     ) -> Result<T, ApiError>
     where
-        T: for<'de> serde::Deserialize<'de>,
+        T: for<'de> serde::Deserialize<'de> + Default,
     {
         let result = self.request(Method::PATCH, path, req.into()).await?;
+        if result.status() == StatusCode::NO_CONTENT {
+            return Ok(T::default());
+        }
         self.parse_response(result, expected_status).await
     }
 }
