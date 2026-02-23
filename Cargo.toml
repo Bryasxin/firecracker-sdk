@@ -3,6 +3,10 @@ name = "firecracker-sdk"
 version = "0.0.0"
 edition = "2024"
 
+[dev-dependencies]
+which = "7"
+tempfile = "3"
+
 [dependencies]
 tracing = "0.1.44"
 paste = { version = "1.0.15" }
