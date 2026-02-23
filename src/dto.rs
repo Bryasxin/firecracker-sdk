@@ -330,7 +330,7 @@ pub struct InstanceInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum InstanceState {
-    #[serde(rename = "Not Started")]
+    #[serde(rename = "Not Started", alias = "Not started")]
     NotStarted,
     Running,
     Paused,
