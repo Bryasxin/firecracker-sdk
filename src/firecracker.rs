@@ -1,7 +1,7 @@
 use crate::api::ApiError;
 use crate::dto::{
     ActionType, Balloon, BootSource, Drive, InstanceActionInfo, InstanceInfo, InstanceState,
-    MachineConfiguration, NetworkInterface, Pmem, VmState, Vsock,
+    MachineConfiguration, NetworkInterface, Pmem, VmState, VmStateRequest, Vsock,
 };
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -378,7 +378,12 @@ impl Firecracker {
         })?;
 
         info!("pausing Firecracker instance");
-        match client.patch_vm(&VmState::Paused).await {
+        match client
+            .patch_vm(&VmStateRequest {
+                state: VmState::Paused,
+            })
+            .await
+        {
             Ok(_) => {
                 self.state = InstanceState::Paused;
                 info!("Firecracker instance paused successfully");
@@ -420,7 +425,12 @@ impl Firecracker {
         })?;
 
         info!("resuming Firecracker instance");
-        match client.patch_vm(&VmState::Running).await {
+        match client
+            .patch_vm(&VmStateRequest {
+                state: VmState::Resumed,
+            })
+            .await
+        {
             Ok(_) => {
                 self.state = InstanceState::Running;
                 info!("Firecracker instance resumed successfully");

@@ -232,7 +232,7 @@ api_methods!(
     PUT "/snapshot/create" as put_snapshot_create (options: SnapshotCreateParams) with NO_CONTENT;
     PUT "/snapshot/load" as put_snapshot_load (options: SnapshotLoadParams) with NO_CONTENT;
     GET "/version" as get_version -> FirecrackerVersion with OK;
-    PATCH "/vm" as patch_vm (vm: VmState) with NO_CONTENT;
+    PATCH "/vm" as patch_vm (vm: VmStateRequest) with NO_CONTENT;
     GET "/vm/config" as get_vm_config -> FullVmConfiguration with OK;
     PUT "/vsock" as put_vsock (vsock: Vsock) with NO_CONTENT;
 

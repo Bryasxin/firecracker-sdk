@@ -689,6 +689,11 @@ pub struct SnapshotLoadParams {
 pub enum VmState {
     #[serde(rename = "Paused")]
     Paused,
-    #[serde(rename = "Running")]
-    Running,
+    #[serde(rename = "Resumed")]
+    Resumed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VmStateRequest {
+    pub state: VmState,
 }
