@@ -104,6 +104,24 @@ impl FirecrackerBuilder {
         info!(binary = %self.firecracker_binary.display(), "building Firecracker instance");
         let firecracker_binary = &self.firecracker_binary;
 
+        let firecracker_binary = if firecracker_binary.is_absolute() {
+            firecracker_binary.clone()
+        } else {
+            match which::which(firecracker_binary) {
+                Ok(path) => {
+                    info!(path = %path.display(), "Found firecracker binary via which");
+                    path
+                }
+                Err(e) => {
+                    error!(path = %firecracker_binary.display(), "Could not find firecracker binary in PATH");
+                    return Err(crate::Error::InvalidConfiguration(format!(
+                        "Firecracker binary not found in PATH: {}",
+                        e
+                    )));
+                }
+            }
+        };
+
         if !firecracker_binary.exists() {
             error!(path = %firecracker_binary.display(), "Firecracker binary not found");
             return Err(crate::Error::InvalidConfiguration(format!(

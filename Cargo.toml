@@ -4,7 +4,6 @@ version = "0.0.0"
 edition = "2024"
 
 [dev-dependencies]
-which = "7"
 tempfile = "3"
 
 [dependencies]
@@ -20,3 +19,4 @@ hyper-util = "0.1.20"
 thiserror = { version = "2.0.18" }
 tokio = { version = "1.46", features = ["full"] }
 percent-encoding = "2.3"
+which = "8.0.0"
