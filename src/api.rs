@@ -1,5 +1,4 @@
 //! Firecracker API client
-use crate::dto;
 use http_body_util::{BodyExt, Full};
 use hyper::{
     Method, Request, Response, StatusCode, Uri,
@@ -7,11 +6,36 @@ use hyper::{
 };
 use hyper_util::client::legacy::Client;
 use hyperlocal::{UnixClientExt, UnixConnector, Uri as UnixUri};
+use openapi::models;
 use paste::paste;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{debug, instrument, trace};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VmStateRequest {
+    pub state: openapi::models::vm::State,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MmdsContentsObject {
+    #[serde(flatten)]
+    pub contents: Value,
+}
+
+macro_rules! model_type {
+    (VmStateRequest) => { $crate::api::VmStateRequest };
+    (MmdsContentsObject) => { $crate::api::MmdsContentsObject };
+    ($($t:tt)*) => { models::$($t)* };
+}
+
+macro_rules! param_type {
+    (VmStateRequest) => { $crate::api::VmStateRequest };
+    (MmdsContentsObject) => { $crate::api::MmdsContentsObject };
+    ($($t:tt)*) => { models::$($t)* };
+}
 
 #[derive(Debug, Clone)]
 pub struct FirecrackerApiClient {
@@ -92,15 +116,17 @@ impl FirecrackerApiClient {
                 Ok(result)
             }
             StatusCode::BAD_REQUEST => {
-                let error: crate::dto::Error = serde_json::from_slice(&body)?;
-                Err(ApiError::InvalidInput(error.fault_message))
+                let error: models::Error = serde_json::from_slice(&body)?;
+                Err(ApiError::InvalidInput(
+                    error.fault_message.unwrap_or_default(),
+                ))
             }
             _ => {
-                let error: crate::dto::Error = serde_json::from_slice(&body)?;
+                let error: models::Error = serde_json::from_slice(&body)?;
                 Err(ApiError::Firecracker(format!(
                     "HTTP {}: {}",
                     status.as_u16(),
-                    error.fault_message
+                    error.fault_message.unwrap_or_default()
                 )))
             }
         }
@@ -179,7 +205,7 @@ macro_rules! api_methods {
     // Get
     (@method GET $path:literal $fn_name:ident $ret:tt $status:ident) => {
         #[tracing::instrument(skip(self), fields(path = $path, method = "GET"))]
-        pub async fn $fn_name(&self) -> Result<dto::$ret, ApiError> {
+        pub async fn $fn_name(&self) -> Result<model_type!($ret), ApiError> {
             tracing::info!("sending API request");
             let result = self.get($path, StatusCode::$status).await;
             match &result {
@@ -196,7 +222,7 @@ macro_rules! api_methods {
             #[tracing::instrument(skip(self, $param_name), fields(path = $path, method = stringify!($method)))]
             pub async fn $fn_name(
                 &self,
-                $param_name: &dto::$param,
+                $param_name: &param_type!($param),
             ) -> Result<(), ApiError> {
                 tracing::info!("sending API request");
                 let result = self.[<$method:lower>](
@@ -270,7 +296,7 @@ impl FirecrackerApiClient {
     }
 
     #[instrument(skip(self, drive))]
-    pub async fn put_drives(&self, drive: &dto::Drive) -> Result<(), ApiError> {
+    pub async fn put_drives(&self, drive: &models::Drive) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&drive.drive_id, NON_ALPHANUMERIC);
         debug!(drive_id = %drive.drive_id, "putting drive");
         self.put(
@@ -282,7 +308,7 @@ impl FirecrackerApiClient {
     }
 
     #[instrument(skip(self, partial_drive))]
-    pub async fn patch_drives(&self, partial_drive: &dto::PartialDrive) -> Result<(), ApiError> {
+    pub async fn patch_drives(&self, partial_drive: &models::PartialDrive) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&partial_drive.drive_id, NON_ALPHANUMERIC);
         debug!(drive_id = %partial_drive.drive_id, "patching drive");
         self.patch(
@@ -294,7 +320,7 @@ impl FirecrackerApiClient {
     }
 
     #[instrument(skip(self, pmem))]
-    pub async fn put_pmem(&self, pmem: &dto::Pmem) -> Result<(), ApiError> {
+    pub async fn put_pmem(&self, pmem: &models::Pmem) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&pmem.id, NON_ALPHANUMERIC);
         debug!(pmem_id = %pmem.id, "putting pmem");
         self.put(
@@ -308,7 +334,7 @@ impl FirecrackerApiClient {
     #[instrument(skip(self, interface))]
     pub async fn put_network_interface(
         &self,
-        interface: &dto::NetworkInterface,
+        interface: &models::NetworkInterface,
     ) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&interface.iface_id, NON_ALPHANUMERIC);
         debug!(iface_id = %interface.iface_id, "putting network interface");
@@ -323,7 +349,7 @@ impl FirecrackerApiClient {
     #[instrument(skip(self, interface))]
     pub async fn patch_network_interface(
         &self,
-        interface: &dto::PartialNetworkInterface,
+        interface: &models::PartialNetworkInterface,
     ) -> Result<(), ApiError> {
         let encoded_id = utf8_percent_encode(&interface.iface_id, NON_ALPHANUMERIC);
         debug!(iface_id = %interface.iface_id, "patching network interface");

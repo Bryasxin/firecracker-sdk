@@ -183,7 +183,7 @@ mod tests {
             .with_pci_support(true)
             .with_boot_timer(true)
             .with_id("test-vm".to_string())
-            .with_logger_level(firecracker_sdk::dto::LoggerLevel::Info)
+            .with_logger_level(firecracker_sdk::models::logger::Level::Info)
             .with_log_file("/tmp/firecracker.log".into())
             .with_metrics_file("/tmp/firecracker.metrics".into())
             .with_mmds_size_limit(1024)

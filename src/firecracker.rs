@@ -1,7 +1,10 @@
 use crate::api::ApiError;
-use crate::dto::{
-    ActionType, Balloon, BootSource, Drive, InstanceActionInfo, InstanceInfo, InstanceState,
-    MachineConfiguration, NetworkInterface, Pmem, VmState, VmStateRequest, Vsock,
+use crate::api::VmStateRequest;
+use crate::types::InstanceState;
+use openapi::models::instance_action_info::ActionType;
+use openapi::models::{
+    Balloon, BootSource, Drive, InstanceActionInfo, InstanceInfo, MachineConfiguration,
+    NetworkInterface, Pmem, Vsock,
 };
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -301,7 +304,7 @@ impl Firecracker {
         let client = crate::api::FirecrackerApiClient::new(api_socket);
         let instance_info = match client.get_instance_info().await {
             Ok(info) => {
-                info!(id = %info.id, state = %info.state, "retrieved instance info");
+                info!(id = %info.id, state = ?info.state, "retrieved instance info");
                 info
             }
             Err(e) => {
@@ -343,6 +346,8 @@ impl Firecracker {
             }
         }
 
+        self.instance_info = Some(self.client.as_ref().unwrap().get_instance_info().await?);
+
         self.state = InstanceState::Running;
         info!("Firecracker instance started successfully");
 
@@ -380,7 +385,7 @@ impl Firecracker {
         info!("pausing Firecracker instance");
         match client
             .patch_vm(&VmStateRequest {
-                state: VmState::Paused,
+                state: openapi::models::vm::State::Paused,
             })
             .await
         {
@@ -427,7 +432,7 @@ impl Firecracker {
         info!("resuming Firecracker instance");
         match client
             .patch_vm(&VmStateRequest {
-                state: VmState::Resumed,
+                state: openapi::models::vm::State::Resumed,
             })
             .await
         {

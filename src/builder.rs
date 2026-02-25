@@ -1,8 +1,18 @@
 //! Firecracker instance builder, which returns an unstarted Firecracker wrapper
-use crate::dto::LoggerLevel;
 use crate::firecracker::Firecracker;
+use openapi::models::logger::Level as LoggerLevel;
 use std::path::PathBuf;
 use tracing::{error, info, instrument, warn};
+
+fn logger_level_to_arg(level: &LoggerLevel) -> &'static str {
+    match level {
+        LoggerLevel::Error => "Error",
+        LoggerLevel::Warning => "Warning",
+        LoggerLevel::Info => "Info",
+        LoggerLevel::Debug => "Debug",
+        LoggerLevel::Trace => "Trace",
+    }
+}
 
 /// Used for quickly generating builder pattern setter methods
 macro_rules! with {
@@ -242,7 +252,7 @@ impl FirecrackerBuilder {
 
         if let Some(level) = self.logger_level {
             firecracker.add_arg("--level");
-            firecracker.add_arg(level.to_string());
+            firecracker.add_arg(logger_level_to_arg(&level));
         }
 
         if let Some(path) = self.log_file {

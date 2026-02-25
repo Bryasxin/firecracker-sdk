@@ -11,7 +11,9 @@
 mod tests {
     use firecracker_sdk::{
         FirecrackerBuilder,
-        dto::{BootSource, CacheType, Drive, InstanceState, MachineConfiguration},
+        models::drive::CacheType,
+        models::{BootSource, Drive, MachineConfiguration},
+        types::InstanceState,
     };
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -109,7 +111,7 @@ mod tests {
         assert!(firecracker.instance_info().is_some());
         assert_eq!(
             firecracker.instance_info().unwrap().state,
-            InstanceState::Running
+            firecracker_sdk::models::instance_info::State::Running
         );
 
         // Test: pause VM
