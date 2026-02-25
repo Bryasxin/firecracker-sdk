@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "api_client"]
+
 [package]
 name = "firecracker-sdk"
 version = "0.0.0"
@@ -20,3 +23,6 @@ thiserror = { version = "2.0.18" }
 tokio = { version = "1.46", features = ["full"] }
 percent-encoding = "2.3"
 which = "8.0.0"
+
+# Importing generated crate
+openapi = { path = "./api_client" }
