@@ -9,32 +9,16 @@ use hyperlocal::{UnixClientExt, UnixConnector, Uri as UnixUri};
 use openapi::models;
 use paste::paste;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{debug, instrument, trace};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VmStateRequest {
-    pub state: openapi::models::vm::State,
-}
+pub type MmdsContentsObject = Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MmdsContentsObject {
-    #[serde(flatten)]
-    pub contents: Value,
-}
-
-macro_rules! model_type {
-    (VmStateRequest) => { $crate::api::VmStateRequest };
+macro_rules! resolve_type {
     (MmdsContentsObject) => { $crate::api::MmdsContentsObject };
-    ($($t:tt)*) => { models::$($t)* };
-}
-
-macro_rules! param_type {
-    (VmStateRequest) => { $crate::api::VmStateRequest };
-    (MmdsContentsObject) => { $crate::api::MmdsContentsObject };
-    ($($t:tt)*) => { models::$($t)* };
+    ($t:ident) => { models::$t };
 }
 
 #[derive(Debug, Clone)]
@@ -205,7 +189,7 @@ macro_rules! api_methods {
     // Get
     (@method GET $path:literal $fn_name:ident $ret:tt $status:ident) => {
         #[tracing::instrument(skip(self), fields(path = $path, method = "GET"))]
-        pub async fn $fn_name(&self) -> Result<model_type!($ret), ApiError> {
+        pub async fn $fn_name(&self) -> Result<resolve_type!($ret), ApiError> {
             tracing::info!("sending API request");
             let result = self.get($path, StatusCode::$status).await;
             match &result {
@@ -222,7 +206,7 @@ macro_rules! api_methods {
             #[tracing::instrument(skip(self, $param_name), fields(path = $path, method = stringify!($method)))]
             pub async fn $fn_name(
                 &self,
-                $param_name: &param_type!($param),
+                $param_name: &resolve_type!($param),
             ) -> Result<(), ApiError> {
                 tracing::info!("sending API request");
                 let result = self.[<$method:lower>](
@@ -270,7 +254,7 @@ api_methods!(
     PUT "/snapshot/create" as put_snapshot_create (options: SnapshotCreateParams) with NO_CONTENT;
     PUT "/snapshot/load" as put_snapshot_load (options: SnapshotLoadParams) with NO_CONTENT;
     GET "/version" as get_version -> FirecrackerVersion with OK;
-    PATCH "/vm" as patch_vm (vm: VmStateRequest) with NO_CONTENT;
+    PATCH "/vm" as patch_vm (vm: Vm) with NO_CONTENT;
     GET "/vm/config" as get_vm_config -> FullVmConfiguration with OK;
     PUT "/vsock" as put_vsock (vsock: Vsock) with NO_CONTENT;
 

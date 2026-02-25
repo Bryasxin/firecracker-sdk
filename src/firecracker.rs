@@ -1,5 +1,5 @@
 use crate::api::ApiError;
-use crate::api::VmStateRequest;
+use openapi::models::Vm;
 use crate::types::InstanceState;
 use openapi::models::instance_action_info::ActionType;
 use openapi::models::{
@@ -384,7 +384,7 @@ impl Firecracker {
 
         info!("pausing Firecracker instance");
         match client
-            .patch_vm(&VmStateRequest {
+            .patch_vm(&Vm {
                 state: openapi::models::vm::State::Paused,
             })
             .await
@@ -431,7 +431,7 @@ impl Firecracker {
 
         info!("resuming Firecracker instance");
         match client
-            .patch_vm(&VmStateRequest {
+            .patch_vm(&Vm {
                 state: openapi::models::vm::State::Resumed,
             })
             .await
